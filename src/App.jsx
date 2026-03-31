@@ -4,10 +4,9 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 
-// Your Firebase Configuration
-// We use a safe check to prevent the 'import.meta' warning in this environment
-// while still allowing Vite to inject the environment variable in your production build.
-const getFirebaseApiKey = () => {
+// Firebase Configuration
+// We use a safe check to pull the API key from your Netlify Environment Variables.
+const getApiKey = () => {
   try {
     return import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY";
   } catch (e) {
@@ -16,7 +15,7 @@ const getFirebaseApiKey = () => {
 };
 
 const firebaseConfig = {
-  apiKey: getFirebaseApiKey(),
+  apiKey: getApiKey(),
   authDomain: "event-queue-3501b.firebaseapp.com",
   projectId: "event-queue-3501b",
   storageBucket: "event-queue-3501b.firebasestorage.app",
@@ -60,7 +59,6 @@ export default function App() {
   const [view, setView] = useState('main');
   const [zoneId, setZoneId] = useState(initialZone);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showQR, setShowQR] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   
   // App State
@@ -108,7 +106,7 @@ export default function App() {
         }
       }
     } catch (err) {
-      setToastMsg("Fullscreen restricted. Open in a direct tab to enable.");
+      setToastMsg("Fullscreen restricted. Please use a browser button.");
       setTimeout(() => setToastMsg(''), 5000);
     }
   };
