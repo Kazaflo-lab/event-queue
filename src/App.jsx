@@ -29,24 +29,27 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = "event-queue-production";
 
-const getTicketParts = (num) => {
+// Helper functions for dynamic Alphanumeric tickets
+const getTicketParts = (num, maxPerLetter = 99) => {
   const n = Number(num);
   if (isNaN(n) || n < 1) return { prefix: 'A', suffix: 1 };
-  const prefixIndex = Math.floor((n - 1) / 99);
+  const prefixIndex = Math.floor((n - 1) / maxPerLetter);
   const prefixChar = String.fromCharCode(65 + (prefixIndex % 26));
-  const suffixNum = ((n - 1) % 99) + 1;
+  const suffixNum = ((n - 1) % maxPerLetter) + 1;
   return { prefix: prefixChar, suffix: suffixNum };
 };
 
-const parseTicketParts = (prefix, suffix) => {
+const parseTicketParts = (prefix, suffix, maxPerLetter = 99) => {
   const prefixIndex = (prefix || 'A').charCodeAt(0) - 65;
   const suffixNum = Math.max(1, Number(suffix) || 1);
-  return (prefixIndex * 99) + suffixNum;
+  return (prefixIndex * maxPerLetter) + suffixNum;
 };
 
-const formatTicketNumber = (num) => {
-  const { prefix, suffix } = getTicketParts(num);
-  return `${prefix}${String(suffix).padStart(2, '0')}`;
+const formatTicketNumber = (num, maxPerLetter = 99) => {
+  const { prefix, suffix } = getTicketParts(num, maxPerLetter);
+  // Pad based on maxPerLetter digits
+  const padding = maxPerLetter >= 100 ? 3 : 2;
+  return `${prefix}${String(suffix).padStart(padding, '0')}`;
 };
 
 export default function App() {
@@ -60,9 +63,11 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   
+  // App State
   const [currentStart, setCurrentStart] = useState(1);
   const [batchSize, setBatchSize] = useState(5);
   const [maxTicket, setMaxTicket] = useState(2000);
+  const [maxPerLetter, setMaxPerLetter] = useState(99); // New State
   const [eventNameEN, setEventNameEN] = useState('Event Queue');
   const [eventNameZH, setEventNameZH] = useState('活動隊列');
   const [servingTextEN, setServingTextEN] = useState('Now Calling');
@@ -80,14 +85,19 @@ export default function App() {
   const prevStartRef = useRef(1);
   const animateRef = useRef(0);
 
-  // Authentication
   useEffect(() => {
-    signInAnonymously(auth).catch(console.error);
+    const initAuth = async () => {
+      try {
+        await signInAnonymously(auth);
+      } catch (error) {
+        console.error("Auth error:", error);
+      }
+    };
+    initAuth();
     const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
   }, []);
 
-  // Sync with Cloud Database - This makes the TV update
   useEffect(() => {
     if (!user) return;
     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'queueState', zoneId);
@@ -97,6 +107,7 @@ export default function App() {
         setCurrentStart(data.currentStart || 1);
         setBatchSize(data.batchSize || 5);
         setMaxTicket(data.maxTicket || 2000);
+        setMaxPerLetter(data.maxPerLetter || 99);
         setEventNameEN(data.eventNameEN || 'Event Queue');
         setEventNameZH(data.eventNameZH || '活動隊列');
         setServingTextEN(data.servingTextEN || 'Now Calling');
@@ -109,13 +120,11 @@ export default function App() {
     return () => unsubscribe();
   }, [user, zoneId]);
 
-  // Update cloud directly - Fixes the "delay" issue
   const updateState = async (updates, targetZone = zoneId) => {
     if (!user) return;
     try {
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'queueState', targetZone);
       await setDoc(docRef, updates, { merge: true });
-      // We don't set local state here; we let the onSnapshot handle it so all devices stay in sync
     } catch (e) { console.error(e); }
   };
 
@@ -142,8 +151,8 @@ export default function App() {
       if ('speechSynthesis' in window) {
         setTimeout(() => {
           const endNum = Math.min(currentStart + batchSize - 1, maxTicket);
-          const startFmt = formatTicketNumber(currentStart).split('').join(' ');
-          const endFmt = formatTicketNumber(endNum).split('').join(' ');
+          const startFmt = formatTicketNumber(currentStart, maxPerLetter).split('').join(' ');
+          const endFmt = formatTicketNumber(endNum, maxPerLetter).split('').join(' ');
           const utteranceZH = new SpeechSynthesisUtterance(`請 ${startFmt} 到 ${endFmt} 號`);
           utteranceZH.lang = 'zh-HK';
           const utteranceEN = new SpeechSynthesisUtterance(`Ticket ${startFmt} to ${endFmt}`);
@@ -176,17 +185,17 @@ export default function App() {
   };
 
   const handleReset = () => {
-    if (confirm("Reset queue?")) updateState({ currentStart: 1 });
+    if (window.confirm("Reset queue?")) updateState({ currentStart: 1 });
   };
 
   const handleLogin = (e) => {
     e.preventDefault();
     if (password === 'admin123') {
-      const s = getTicketParts(currentStart);
-      const m = getTicketParts(maxTicket);
+      const s = getTicketParts(currentStart, maxPerLetter);
+      const m = getTicketParts(maxTicket, maxPerLetter);
       setDraftSettings({ 
         startPrefix: s.prefix, startSuffix: s.suffix, batch: batchSize, 
-        maxPrefix: m.prefix, maxSuffix: m.suffix,
+        maxPrefix: m.prefix, maxSuffix: m.suffix, maxPerLetter: maxPerLetter,
         eventNameEN, eventNameZH, servingTextEN, servingTextZH,
         logoText, enableAudio, zoneId, zoneName
       });
@@ -200,24 +209,28 @@ export default function App() {
     const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'queueState', nid));
     if (snap.exists()) {
       const d = snap.data();
-      const s = getTicketParts(d.currentStart || 1);
-      const m = getTicketParts(d.maxTicket || 2000);
+      const currentMaxPL = d.maxPerLetter || 99;
+      const s = getTicketParts(d.currentStart || 1, currentMaxPL);
+      const m = getTicketParts(d.maxTicket || 2000, currentMaxPL);
       setDraftSettings(p => ({
         ...p, startPrefix: s.prefix, startSuffix: s.suffix, batch: d.batchSize || 5,
-        maxPrefix: m.prefix, maxSuffix: m.suffix, zoneName: d.zoneName || nid,
-        eventNameEN: d.eventNameEN || p.eventNameEN, eventNameZH: d.eventNameZH || p.eventNameZH,
-        logoText: d.logoText || p.logoText, enableAudio: d.enableAudio || false
+        maxPrefix: m.prefix, maxSuffix: m.suffix, maxPerLetter: currentMaxPL,
+        zoneName: d.zoneName || nid, eventNameEN: d.eventNameEN || p.eventNameEN,
+        eventNameZH: d.eventNameZH || p.eventNameZH, servingTextEN: d.servingTextEN || p.servingTextEN,
+        servingTextZH: d.servingTextZH || p.servingTextZH, logoText: d.logoText || p.logoText,
+        enableAudio: d.enableAudio || false
       }));
     }
   };
 
   const saveSettings = () => {
     const tz = draftSettings.zoneId;
-    setZoneId(tz);
+    const mpl = Number(draftSettings.maxPerLetter) || 99;
     updateState({
-      currentStart: parseTicketParts(draftSettings.startPrefix, draftSettings.startSuffix),
+      currentStart: parseTicketParts(draftSettings.startPrefix, draftSettings.startSuffix, mpl),
       batchSize: Number(draftSettings.batch),
-      maxTicket: parseTicketParts(draftSettings.maxPrefix, draftSettings.maxSuffix),
+      maxTicket: parseTicketParts(draftSettings.maxPrefix, draftSettings.maxSuffix, mpl),
+      maxPerLetter: mpl,
       eventNameEN: draftSettings.eventNameEN, eventNameZH: draftSettings.eventNameZH,
       servingTextEN: draftSettings.servingTextEN, servingTextZH: draftSettings.servingTextZH,
       logoText: draftSettings.logoText || 'EQ', enableAudio: draftSettings.enableAudio, zoneName: draftSettings.zoneName
@@ -228,14 +241,14 @@ export default function App() {
   const currentNumbers = Array.from({ length: Math.max(0, Math.min(batchSize, maxTicket - currentStart + 1)) }, (_, i) => currentStart + i);
 
   if (view === 'login') return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-slate-100">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-slate-100 font-sans">
       <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-2xl w-full max-w-md">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-xl font-bold">管理員登入 / Admin Access</h2>
-          <X className="cursor-pointer" onClick={() => setView('main')} />
+          <X className="cursor-pointer hover:text-red-400" onClick={() => setView('main')} />
         </div>
         <form onSubmit={handleLogin} className="space-y-6">
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3" placeholder="Password" autoFocus />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-blue-500 outline-none" placeholder="Password" autoFocus />
           {loginError && <p className="text-red-400 text-sm">{loginError}</p>}
           <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold">登入 / Login</button>
         </form>
@@ -259,9 +272,22 @@ export default function App() {
             <label className="text-xs text-slate-400 uppercase tracking-wider">Event Name (EN)</label>
             <input type="text" value={draftSettings.eventNameEN} onChange={e => setDraftSettings({...draftSettings, eventNameEN: e.target.value})} className="w-full bg-slate-900 p-3 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition-colors" placeholder="Event Name EN" />
           </div>
-          <div className="space-y-2 md:col-span-2 mt-2">
+          <div className="space-y-2">
+            <label className="text-xs text-slate-400 uppercase tracking-wider">提示文字 (Announcement ZH)</label>
+            <input type="text" value={draftSettings.servingTextZH} onChange={e => setDraftSettings({...draftSettings, servingTextZH: e.target.value})} className="w-full bg-slate-900 p-3 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition-colors" placeholder="正在叫號" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs text-slate-400 uppercase tracking-wider">Announcement Text (EN)</label>
+            <input type="text" value={draftSettings.servingTextEN} onChange={e => setDraftSettings({...draftSettings, servingTextEN: e.target.value})} className="w-full bg-slate-900 p-3 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition-colors" placeholder="Now Calling" />
+          </div>
+          <div className="space-y-2 mt-2">
             <label className="text-xs text-slate-400 uppercase tracking-wider">標誌文字 / Logo Text (Max 3 chars)</label>
-            <input type="text" maxLength={3} value={draftSettings.logoText || ''} onChange={e => setDraftSettings({...draftSettings, logoText: e.target.value})} className="w-full md:w-1/2 bg-slate-900 p-3 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition-colors uppercase" placeholder="EQ" />
+            <input type="text" maxLength={3} value={draftSettings.logoText || ''} onChange={e => setDraftSettings({...draftSettings, logoText: e.target.value})} className="w-full bg-slate-900 p-3 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition-colors uppercase" placeholder="EQ" />
+          </div>
+          <div className="space-y-2 mt-2">
+            <label className="text-xs text-slate-400 uppercase tracking-wider">字母進位上限 / Max per Alphabet</label>
+            <input type="number" min="10" max="999" value={draftSettings.maxPerLetter} onChange={e => setDraftSettings({...draftSettings, maxPerLetter: e.target.value})} className="w-full bg-slate-900 p-3 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition-colors" placeholder="99" />
+            <p className="text-[10px] text-slate-500">e.g. 50 means A50 jumps to B01</p>
           </div>
         </div>
         
@@ -313,13 +339,13 @@ export default function App() {
           <span className="font-medium">啟用音效與語音播報 / Enable Audio & Voice</span>
         </label>
         
-        <button onClick={saveSettings} className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-bold flex items-center justify-center shadow-lg shadow-blue-500/20 transition-all active:scale-[0.98]"><Save className="mr-2 w-5 h-5" /> 儲存並同步 / Save & Sync</button>
+        <button onClick={saveSettings} className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-bold flex items-center justify-center shadow-lg shadow-blue-500/20 transition-all active:scale-[0.98]"><Save className="w-6 h-6 mr-2" /> 儲存並同步 / Save & Sync</button>
       </main>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col text-slate-100 font-sans">
+    <div className="min-h-screen bg-slate-950 flex flex-col text-slate-100 font-sans select-none">
       <style>{`
         @keyframes pop { 0% { opacity: 0; transform: scale(0.9) translateY(20px); } 100% { opacity: 1; transform: scale(1) translateY(0); } } 
         .animate-pop { animation: pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
@@ -344,7 +370,7 @@ export default function App() {
       
       <header className="p-6 md:p-8 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur-md">
         <div className="flex items-center space-x-5">
-          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-xl md:text-2xl shadow-lg shadow-blue-500/20 uppercase">
+          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-xl md:text-2xl shadow-lg shadow-blue-500/20 uppercase tracking-tighter">
             {logoText}
           </div>
           <div>
@@ -370,7 +396,7 @@ export default function App() {
             <h3 className="text-xl md:text-3xl text-slate-400 uppercase tracking-[0.2em] font-semibold">{servingTextEN}</h3>
           </div>
           
-          <div className="flex flex-wrap justify-center gap-6 md:gap-10" key={animateRef.current}>
+          <div className="flex flex-wrap justify-center gap-6 md:gap-10" key={`anim-${animateRef.current}`}>
             {currentNumbers.map((num, i) => (
               <div 
                 key={num} 
@@ -382,7 +408,7 @@ export default function App() {
                 }}
               >
                 <span className="text-7xl md:text-9xl font-black tracking-tighter tabular-nums drop-shadow-md">
-                  {formatTicketNumber(num)}
+                  {formatTicketNumber(num, maxPerLetter)}
                 </span>
               </div>
             ))}
