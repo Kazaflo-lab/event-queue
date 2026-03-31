@@ -29,7 +29,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = "event-queue-production";
 
-// Helper functions for Alphanumeric tickets (A01...A99, B01...B99)
 const getTicketParts = (num) => {
   const n = Number(num);
   if (isNaN(n) || n < 1) return { prefix: 'A', suffix: 1 };
@@ -59,10 +58,8 @@ export default function App() {
   const [view, setView] = useState('main');
   const [zoneId, setZoneId] = useState(initialZone);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showQR, setShowQR] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   
-  // App State
   const [currentStart, setCurrentStart] = useState(1);
   const [batchSize, setBatchSize] = useState(5);
   const [maxTicket, setMaxTicket] = useState(2000);
@@ -83,35 +80,14 @@ export default function App() {
   const prevStartRef = useRef(1);
   const animateRef = useRef(0);
 
+  // Authentication
   useEffect(() => {
     signInAnonymously(auth).catch(console.error);
     const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  const toggleFullscreen = async () => {
-    try {
-      if (!document.fullscreenElement) {
-        if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen();
-        }
-      } else {
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-        }
-      }
-    } catch (err) {
-      setToastMsg("Fullscreen restricted. Open in a direct tab to enable.");
-      setTimeout(() => setToastMsg(''), 5000);
-    }
-  };
-
+  // Sync with Cloud Database - This makes the TV update
   useEffect(() => {
     if (!user) return;
     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'queueState', zoneId);
@@ -129,18 +105,17 @@ export default function App() {
         setEnableAudio(data.enableAudio || false);
         setZoneName(data.zoneName || zoneId);
       }
-    }, (error) => {
-      console.error("Firestore read error:", error);
     });
     return () => unsubscribe();
   }, [user, zoneId]);
 
+  // Update cloud directly - Fixes the "delay" issue
   const updateState = async (updates, targetZone = zoneId) => {
-    if (updates.currentStart !== undefined) setCurrentStart(updates.currentStart);
     if (!user) return;
     try {
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'queueState', targetZone);
       await setDoc(docRef, updates, { merge: true });
+      // We don't set local state here; we let the onSnapshot handle it so all devices stay in sync
     } catch (e) { console.error(e); }
   };
 
@@ -169,14 +144,10 @@ export default function App() {
           const endNum = Math.min(currentStart + batchSize - 1, maxTicket);
           const startFmt = formatTicketNumber(currentStart).split('').join(' ');
           const endFmt = formatTicketNumber(endNum).split('').join(' ');
-          
-          // Set to Cantonese (Hong Kong)
           const utteranceZH = new SpeechSynthesisUtterance(`請 ${startFmt} 到 ${endFmt} 號`);
           utteranceZH.lang = 'zh-HK';
-          
           const utteranceEN = new SpeechSynthesisUtterance(`Ticket ${startFmt} to ${endFmt}`);
           utteranceEN.lang = 'en-US';
-          
           window.speechSynthesis.speak(utteranceZH);
           window.speechSynthesis.speak(utteranceEN);
         }, 800);
@@ -192,22 +163,16 @@ export default function App() {
     }
   }, [currentStart, enableAudio, audioReady, isAttendee]);
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (view !== 'main' || isAttendee) return;
-      if (e.key === 'ArrowRight') handleNext();
-      if (e.key === 'ArrowLeft') handlePrev();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentStart, view, batchSize, maxTicket, isAttendee]);
-
   const handleNext = () => {
-    if (currentStart + batchSize <= maxTicket) updateState({ currentStart: currentStart + batchSize });
+    if (currentStart + batchSize <= maxTicket) {
+      updateState({ currentStart: currentStart + batchSize });
+    }
   };
 
   const handlePrev = () => {
-    if (currentStart - batchSize >= 1) updateState({ currentStart: currentStart - batchSize });
+    if (currentStart - batchSize >= 1) {
+      updateState({ currentStart: currentStart - batchSize });
+    }
   };
 
   const handleReset = () => {
@@ -243,14 +208,12 @@ export default function App() {
         eventNameEN: d.eventNameEN || p.eventNameEN, eventNameZH: d.eventNameZH || p.eventNameZH,
         logoText: d.logoText || p.logoText, enableAudio: d.enableAudio || false
       }));
-    } else {
-      setDraftSettings(p => ({ ...p, startPrefix: 'A', startSuffix: 1, batch: 5, maxPrefix: 'U', maxSuffix: 20, zoneName: nid }));
     }
   };
 
   const saveSettings = () => {
     const tz = draftSettings.zoneId;
-    setZoneId(tz); setZoneName(draftSettings.zoneName);
+    setZoneId(tz);
     updateState({
       currentStart: parseTicketParts(draftSettings.startPrefix, draftSettings.startSuffix),
       batchSize: Number(draftSettings.batch),
@@ -265,16 +228,16 @@ export default function App() {
   const currentNumbers = Array.from({ length: Math.max(0, Math.min(batchSize, maxTicket - currentStart + 1)) }, (_, i) => currentStart + i);
 
   if (view === 'login') return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-slate-100 font-sans">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-slate-100">
       <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-2xl w-full max-w-md">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-xl font-bold">管理員登入 / Admin Access</h2>
-          <X className="cursor-pointer hover:text-red-400" onClick={() => setView('main')} />
+          <X className="cursor-pointer" onClick={() => setView('main')} />
         </div>
         <form onSubmit={handleLogin} className="space-y-6">
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-blue-500 outline-none" placeholder="Password" autoFocus />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3" placeholder="Password" autoFocus />
           {loginError && <p className="text-red-400 text-sm">{loginError}</p>}
-          <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold hover:bg-blue-500 transition-colors shadow-lg">登入 / Login</button>
+          <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold">登入 / Login</button>
         </form>
       </div>
     </div>
@@ -356,7 +319,7 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col text-slate-100 font-sans selection:bg-blue-500/30">
+    <div className="min-h-screen bg-slate-950 flex flex-col text-slate-100 font-sans">
       <style>{`
         @keyframes pop { 0% { opacity: 0; transform: scale(0.9) translateY(20px); } 100% { opacity: 1; transform: scale(1) translateY(0); } } 
         .animate-pop { animation: pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
@@ -381,7 +344,7 @@ export default function App() {
       
       <header className="p-6 md:p-8 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur-md">
         <div className="flex items-center space-x-5">
-          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-xl md:text-2xl shadow-lg shadow-blue-500/20 uppercase tracking-tighter">
+          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-xl md:text-2xl shadow-lg shadow-blue-500/20 uppercase">
             {logoText}
           </div>
           <div>
@@ -463,9 +426,6 @@ export default function App() {
               </button>
               <button onClick={handleReset} className="flex items-center text-slate-400 hover:text-red-400 transition-colors font-medium text-sm">
                 <RotateCcw className="w-4 h-4 mr-2" /> 重置 / Reset
-              </button>
-              <button onClick={toggleFullscreen} className="flex items-center text-slate-400 hover:text-purple-400 transition-colors font-medium text-sm">
-                <Maximize className="w-4 h-4 mr-2" /> 全螢幕 / Full
               </button>
             </div>
             
