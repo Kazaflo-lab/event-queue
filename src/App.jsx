@@ -5,10 +5,10 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 
 // Firebase Configuration
-// We use a safe check to pull the API key from your Netlify Environment Variables.
 const getApiKey = () => {
   try {
-    return import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY";
+    return (import.meta && import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) 
+      || "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY";
   } catch (e) {
     return "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY";
   }
@@ -59,6 +59,7 @@ export default function App() {
   const [view, setView] = useState('main');
   const [zoneId, setZoneId] = useState(initialZone);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   
   // App State
@@ -67,8 +68,8 @@ export default function App() {
   const [maxTicket, setMaxTicket] = useState(2000);
   const [eventNameEN, setEventNameEN] = useState('Event Queue');
   const [eventNameZH, setEventNameZH] = useState('活動隊列');
-  const [servingTextEN, setServingTextEN] = useState('Now Serving');
-  const [servingTextZH, setServingTextZH] = useState('現正服務');
+  const [servingTextEN, setServingTextEN] = useState('Now Calling');
+  const [servingTextZH, setServingTextZH] = useState('正在叫號');
   const [logoText, setLogoText] = useState('EQ');
   const [enableAudio, setEnableAudio] = useState(false);
   const [zoneName, setZoneName] = useState('Zone 1');
@@ -106,7 +107,7 @@ export default function App() {
         }
       }
     } catch (err) {
-      setToastMsg("Fullscreen restricted. Please use a browser button.");
+      setToastMsg("Fullscreen restricted. Open in a direct tab to enable.");
       setTimeout(() => setToastMsg(''), 5000);
     }
   };
@@ -122,12 +123,14 @@ export default function App() {
         setMaxTicket(data.maxTicket || 2000);
         setEventNameEN(data.eventNameEN || 'Event Queue');
         setEventNameZH(data.eventNameZH || '活動隊列');
-        setServingTextEN(data.servingTextEN || 'Now Serving');
-        setServingTextZH(data.servingTextZH || '現正服務');
+        setServingTextEN(data.servingTextEN || 'Now Calling');
+        setServingTextZH(data.servingTextZH || '正在叫號');
         setLogoText(data.logoText || 'EQ');
         setEnableAudio(data.enableAudio || false);
         setZoneName(data.zoneName || zoneId);
       }
+    }, (error) => {
+      console.error("Firestore read error:", error);
     });
     return () => unsubscribe();
   }, [user, zoneId]);
@@ -166,10 +169,14 @@ export default function App() {
           const endNum = Math.min(currentStart + batchSize - 1, maxTicket);
           const startFmt = formatTicketNumber(currentStart).split('').join(' ');
           const endFmt = formatTicketNumber(endNum).split('').join(' ');
+          
+          // Set to Cantonese (Hong Kong)
           const utteranceZH = new SpeechSynthesisUtterance(`請 ${startFmt} 到 ${endFmt} 號`);
-          utteranceZH.lang = 'zh-TW';
+          utteranceZH.lang = 'zh-HK';
+          
           const utteranceEN = new SpeechSynthesisUtterance(`Ticket ${startFmt} to ${endFmt}`);
           utteranceEN.lang = 'en-US';
+          
           window.speechSynthesis.speak(utteranceZH);
           window.speechSynthesis.speak(utteranceEN);
         }, 800);
