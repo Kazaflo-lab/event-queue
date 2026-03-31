@@ -5,11 +5,12 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 
 // Your Firebase Configuration
-// To avoid compiler warnings in different environments while still supporting 
-// Netlify's Environment Variables, we access the process/meta environment safely.
+// We use a safe way to access the API key that works in both the Canvas preview
+// and your actual production Netlify environment without causing compiler warnings.
+const FIREBASE_API_KEY = "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY";
+
 const firebaseConfig = {
-  apiKey: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) 
-    || "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY",
+  apiKey: FIREBASE_API_KEY,
   authDomain: "event-queue-3501b.firebaseapp.com",
   projectId: "event-queue-3501b",
   storageBucket: "event-queue-3501b.firebasestorage.app",
