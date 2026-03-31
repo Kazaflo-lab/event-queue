@@ -5,12 +5,18 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 
 // Your Firebase Configuration
-// We use a safe way to access the API key that works in both the Canvas preview
-// and your actual production Netlify environment without causing compiler warnings.
-const FIREBASE_API_KEY = "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY";
+// We use a safe check to prevent the 'import.meta' warning in this environment
+// while still allowing Vite to inject the environment variable in your production build.
+const getFirebaseApiKey = () => {
+  try {
+    return import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY";
+  } catch (e) {
+    return "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY";
+  }
+};
 
 const firebaseConfig = {
-  apiKey: FIREBASE_API_KEY,
+  apiKey: getFirebaseApiKey(),
   authDomain: "event-queue-3501b.firebaseapp.com",
   projectId: "event-queue-3501b",
   storageBucket: "event-queue-3501b.firebasestorage.app",
@@ -254,23 +260,23 @@ export default function App() {
   const currentNumbers = Array.from({ length: Math.max(0, Math.min(batchSize, maxTicket - currentStart + 1)) }, (_, i) => currentStart + i);
 
   if (view === 'login') return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-slate-100">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-slate-100 font-sans">
       <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-2xl w-full max-w-md">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-xl font-bold">管理員登入 / Admin Access</h2>
-          <X className="cursor-pointer" onClick={() => setView('main')} />
+          <X className="cursor-pointer hover:text-red-400" onClick={() => setView('main')} />
         </div>
         <form onSubmit={handleLogin} className="space-y-6">
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white" placeholder="Password" autoFocus />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-blue-500 outline-none" placeholder="Password" autoFocus />
           {loginError && <p className="text-red-400 text-sm">{loginError}</p>}
-          <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold hover:bg-blue-500 transition-colors">登入 / Login</button>
+          <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold hover:bg-blue-500 transition-colors shadow-lg">登入 / Login</button>
         </form>
       </div>
     </div>
   );
 
   if (view === 'settings') return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
       <header className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur-md sticky top-0 z-20">
         <h1 className="text-xl font-bold">設定 / Settings</h1>
         <X className="cursor-pointer hover:text-red-400 transition-colors" onClick={() => setView('main')} />
@@ -366,7 +372,7 @@ export default function App() {
       
       <header className="p-6 md:p-8 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur-md">
         <div className="flex items-center space-x-5">
-          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg shadow-blue-500/20">
+          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg shadow-blue-500/20 uppercase tracking-tighter">
             {logoText}
           </div>
           <div>
