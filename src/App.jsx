@@ -5,8 +5,17 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 
 // Your Firebase Configuration
+// We use a safe check for the environment variable to prevent compiler warnings
+const getApiKey = () => {
+  try {
+    return import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY";
+  } catch (e) {
+    return "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY";
+  }
+};
+
 const firebaseConfig = {
-  apiKey: "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY",
+  apiKey: getApiKey(),
   authDomain: "event-queue-3501b.firebaseapp.com",
   projectId: "event-queue-3501b",
   storageBucket: "event-queue-3501b.firebasestorage.app",
@@ -89,9 +98,13 @@ export default function App() {
   const toggleFullscreen = async () => {
     try {
       if (!document.fullscreenElement) {
-        await document.documentElement.requestFullscreen();
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
       } else {
-        await document.exitFullscreen();
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
       }
     } catch (err) {
       setToastMsg("Fullscreen restricted. Open in a direct tab to enable.");
@@ -253,9 +266,9 @@ export default function App() {
           <X className="cursor-pointer" onClick={() => setView('main')} />
         </div>
         <form onSubmit={handleLogin} className="space-y-6">
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3" placeholder="Password" autoFocus />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white" placeholder="Password" autoFocus />
           {loginError && <p className="text-red-400 text-sm">{loginError}</p>}
-          <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold">登入 / Login</button>
+          <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold hover:bg-blue-500 transition-colors">登入 / Login</button>
         </form>
       </div>
     </div>
@@ -263,110 +276,212 @@ export default function App() {
 
   if (view === 'settings') return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="p-6 border-b border-slate-800 flex justify-between items-center">
+      <header className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur-md sticky top-0 z-20">
         <h1 className="text-xl font-bold">設定 / Settings</h1>
-        <X className="cursor-pointer" onClick={() => setView('main')} />
+        <X className="cursor-pointer hover:text-red-400 transition-colors" onClick={() => setView('main')} />
       </header>
-      <main className="p-6 max-w-4xl mx-auto space-y-8">
+      <main className="p-6 max-w-4xl mx-auto space-y-8 pb-24">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input type="text" value={draftSettings.eventNameZH} onChange={e => setDraftSettings({...draftSettings, eventNameZH: e.target.value})} className="bg-slate-900 p-3 rounded-xl border border-slate-700" placeholder="活動名稱 ZH" />
-          <input type="text" value={draftSettings.eventNameEN} onChange={e => setDraftSettings({...draftSettings, eventNameEN: e.target.value})} className="bg-slate-900 p-3 rounded-xl border border-slate-700" placeholder="Event Name EN" />
-        </div>
-        <div className="bg-slate-900 p-6 rounded-2xl space-y-4">
-          <label className="block text-sm">區域 / Zone</label>
-          <select value={draftSettings.zoneId} onChange={handleZoneChange} className="w-full bg-slate-950 p-3 rounded-xl border border-slate-700">
-            <option value="zone1">Zone 1</option><option value="zone2">Zone 2</option><option value="zone3">Zone 3</option>
-          </select>
-          <input type="text" value={draftSettings.zoneName} onChange={e => setDraftSettings({...draftSettings, zoneName: e.target.value})} className="w-full bg-slate-950 p-3 rounded-xl border border-slate-700" placeholder="Zone Display Name" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs mb-1">起始 / Start</label>
-            <div className="flex space-x-1">
-              <select value={draftSettings.startPrefix} onChange={e => setDraftSettings({...draftSettings, startPrefix: e.target.value})} className="bg-slate-950 p-2 rounded border border-slate-700">{Array.from({length:26},(_,i)=>String.fromCharCode(65+i)).map(c=><option key={c} value={c}>{c}</option>)}</select>
-              <input type="number" value={draftSettings.startSuffix} onChange={e => setDraftSettings({...draftSettings, startSuffix: e.target.value})} className="bg-slate-950 p-2 rounded border border-slate-700 w-full" />
-            </div>
+          <div className="space-y-2">
+            <label className="text-xs text-slate-400 uppercase tracking-wider">活動名稱 (ZH)</label>
+            <input type="text" value={draftSettings.eventNameZH} onChange={e => setDraftSettings({...draftSettings, eventNameZH: e.target.value})} className="w-full bg-slate-900 p-3 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition-colors" placeholder="活動名稱 ZH" />
           </div>
-          <input type="number" value={draftSettings.batch} onChange={e => setDraftSettings({...draftSettings, batch: e.target.value})} className="bg-slate-900 p-3 rounded-xl border border-slate-700" placeholder="Batch Size" />
-          <div>
-            <label className="block text-xs mb-1">最大 / Max</label>
-            <div className="flex space-x-1">
-              <select value={draftSettings.maxPrefix} onChange={e => setDraftSettings({...draftSettings, maxPrefix: e.target.value})} className="bg-slate-950 p-2 rounded border border-slate-700">{Array.from({length:26},(_,i)=>String.fromCharCode(65+i)).map(c=><option key={c} value={c}>{c}</option>)}</select>
-              <input type="number" value={draftSettings.maxSuffix} onChange={e => setDraftSettings({...draftSettings, maxSuffix: e.target.value})} className="bg-slate-950 p-2 rounded border border-slate-700 w-full" />
-            </div>
+          <div className="space-y-2">
+            <label className="text-xs text-slate-400 uppercase tracking-wider">Event Name (EN)</label>
+            <input type="text" value={draftSettings.eventNameEN} onChange={e => setDraftSettings({...draftSettings, eventNameEN: e.target.value})} className="w-full bg-slate-900 p-3 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition-colors" placeholder="Event Name EN" />
           </div>
         </div>
-        <label className="flex items-center space-x-3 bg-slate-900 p-4 rounded-xl">
-          <input type="checkbox" checked={draftSettings.enableAudio} onChange={e => setDraftSettings({...draftSettings, enableAudio: e.target.checked})} />
-          <span>啟用音效 / Enable Audio</span>
+        
+        <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 space-y-6">
+          <h3 className="text-sm font-bold text-blue-400 uppercase tracking-widest">區域配置 / Zone Configuration</h3>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400">選擇操作區域 / Select Zone</label>
+              <select value={draftSettings.zoneId} onChange={handleZoneChange} className="w-full bg-slate-950 p-3 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition-colors cursor-pointer">
+                <option value="zone1">Zone 1</option><option value="zone2">Zone 2</option><option value="zone3">Zone 3</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400">區域顯示名稱 / Zone Name</label>
+              <input type="text" value={draftSettings.zoneName} onChange={e => setDraftSettings({...draftSettings, zoneName: e.target.value})} className="w-full bg-slate-950 p-3 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition-colors" placeholder="Zone Display Name" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 space-y-6">
+          <h3 className="text-sm font-bold text-orange-400 uppercase tracking-widest">隊列參數 / Queue Parameters</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400">起始號碼 / Start</label>
+              <div className="flex space-x-2">
+                <select value={draftSettings.startPrefix} onChange={e => setDraftSettings({...draftSettings, startPrefix: e.target.value})} className="bg-slate-950 p-3 rounded-xl border border-slate-700 outline-none w-20 text-center cursor-pointer">{Array.from({length:26},(_,i)=>String.fromCharCode(65+i)).map(c=><option key={c} value={c}>{c}</option>)}</select>
+                <input type="number" value={draftSettings.startSuffix} onChange={e => setDraftSettings({...draftSettings, startSuffix: e.target.value})} className="bg-slate-950 p-3 rounded-xl border border-slate-700 outline-none w-full" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400">每批數量 / Batch</label>
+              <input type="number" value={draftSettings.batch} onChange={e => setDraftSettings({...draftSettings, batch: e.target.value})} className="w-full bg-slate-950 p-3 rounded-xl border border-slate-700 outline-none" placeholder="Batch Size" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400">最大號碼 / Max</label>
+              <div className="flex space-x-2">
+                <select value={draftSettings.maxPrefix} onChange={e => setDraftSettings({...draftSettings, maxPrefix: e.target.value})} className="bg-slate-950 p-3 rounded-xl border border-slate-700 outline-none w-20 text-center cursor-pointer">{Array.from({length:26},(_,i)=>String.fromCharCode(65+i)).map(c=><option key={c} value={c}>{c}</option>)}</select>
+                <input type="number" value={draftSettings.maxSuffix} onChange={e => setDraftSettings({...draftSettings, maxSuffix: e.target.value})} className="bg-slate-950 p-3 rounded-xl border border-slate-700 outline-none w-full" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <label className="flex items-center space-x-4 bg-slate-900 p-5 rounded-3xl border border-slate-800 cursor-pointer hover:border-green-500/50 transition-colors">
+          <div className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${draftSettings.enableAudio ? 'bg-green-600 border-green-600' : 'border-slate-600'}`}>
+            <input type="checkbox" className="hidden" checked={draftSettings.enableAudio} onChange={e => setDraftSettings({...draftSettings, enableAudio: e.target.checked})} />
+            {draftSettings.enableAudio && <div className="w-2 h-2 bg-white rounded-full"></div>}
+          </div>
+          <span className="font-medium">啟用音效與語音播報 / Enable Audio & Voice</span>
         </label>
-        <button onClick={saveSettings} className="w-full bg-blue-600 py-4 rounded-xl font-bold flex items-center justify-center"><Save className="mr-2" /> 儲存 / Save</button>
+        
+        <button onClick={saveSettings} className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-bold flex items-center justify-center shadow-lg shadow-blue-500/20 transition-all active:scale-[0.98]"><Save className="mr-2 w-5 h-5" /> 儲存並同步 / Save & Sync</button>
       </main>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col text-slate-100">
-      <style>{`@keyframes pop { 0% { opacity: 0; transform: scale(0.9); } 100% { opacity: 1; transform: scale(1); } } .animate-pop { animation: pop 0.5s ease-out forwards; }`}</style>
-      {toastMsg && <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-slate-800 px-6 py-3 rounded-full z-50 border border-slate-700">{toastMsg}</div>}
-      {enableAudio && !audioReady && !isAttendee && <div onClick={() => setAudioReady(true)} className="bg-green-600 p-3 text-center cursor-pointer font-bold">點擊啟用音效 / Enable Sound</div>}
+    <div className="min-h-screen bg-slate-950 flex flex-col text-slate-100 font-sans selection:bg-blue-500/30">
+      <style>{`
+        @keyframes pop { 0% { opacity: 0; transform: scale(0.9) translateY(20px); } 100% { opacity: 1; transform: scale(1) translateY(0); } } 
+        .animate-pop { animation: pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+      `}</style>
       
-      <header className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center font-black">{logoText}</div>
+      {toastMsg && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-slate-800 px-6 py-3 rounded-full z-50 border border-slate-700 shadow-2xl flex items-center animate-pop">
+          <AlertCircle className="w-4 h-4 mr-2 text-yellow-400" />
+          <span className="text-sm font-medium">{toastMsg}</span>
+        </div>
+      )}
+      
+      {enableAudio && !audioReady && !isAttendee && (
+        <div 
+          onClick={() => setAudioReady(true)} 
+          className="bg-green-600 p-4 text-center cursor-pointer font-bold animate-pulse sticky top-0 z-30 shadow-lg"
+        >
+          <Volume2 className="inline-block mr-2 w-5 h-5" />
+          點擊此處以啟用音效播報 / Click here to enable sound announcements
+        </div>
+      )}
+      
+      <header className="p-6 md:p-8 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur-md">
+        <div className="flex items-center space-x-5">
+          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg shadow-blue-500/20">
+            {logoText}
+          </div>
           <div>
-            <div className="flex items-center space-x-2">
-              <h1 className="text-xl md:text-2xl font-bold">{eventNameZH}</h1>
-              <span className="text-[10px] bg-blue-600/30 px-1 rounded border border-blue-500/50">{zoneName}</span>
+            <div className="flex items-center flex-wrap gap-2 mb-1">
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{eventNameZH}</h1>
+              <span className="text-[10px] uppercase font-bold tracking-widest bg-blue-600/30 px-2 py-1 rounded border border-blue-500/50 text-blue-400">{zoneName}</span>
             </div>
-            <h2 className="text-xs text-slate-400">{eventNameEN}</h2>
+            <h2 className="text-sm text-slate-400 font-medium">{eventNameEN}</h2>
           </div>
         </div>
-        <div className="bg-slate-800 px-4 py-2 rounded-xl border border-slate-700 font-mono text-xl tabular-nums">
+        <div className="bg-slate-800 px-5 py-3 rounded-2xl border border-slate-700 font-mono text-2xl md:text-3xl tabular-nums shadow-inner text-slate-200">
+          <Clock className="inline-block mr-2 w-6 h-6 text-blue-500" />
           {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
         </div>
       </header>
 
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-        <div className={`flex-1 flex flex-col items-center justify-center p-6 ${!isAttendee ? 'md:w-2/3' : 'w-full'}`}>
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-6xl font-bold mb-2">{servingTextZH}</h2>
-            <h3 className="text-xl text-slate-400 uppercase tracking-widest">{servingTextEN}</h3>
+        <div className="absolute inset-0 bg-blue-600/5 blur-[120px] pointer-events-none rounded-full translate-y-1/2"></div>
+        
+        <div className={`flex-1 flex flex-col items-center justify-center p-6 md:p-12 z-10 ${!isAttendee ? 'md:w-2/3' : 'w-full'}`}>
+          <div className="text-center mb-10 md:mb-16">
+            <h2 className="text-5xl md:text-8xl font-black mb-4 tracking-tight drop-shadow-sm">{servingTextZH}</h2>
+            <h3 className="text-xl md:text-3xl text-slate-400 uppercase tracking-[0.2em] font-semibold">{servingTextEN}</h3>
           </div>
-          <div className="flex flex-wrap justify-center gap-6" key={animateRef.current}>
+          
+          <div className="flex flex-wrap justify-center gap-6 md:gap-10" key={animateRef.current}>
             {currentNumbers.map((num, i) => (
-              <div key={num} className="animate-pop bg-slate-900 border-2 border-slate-700 rounded-3xl p-8 w-[240px] text-center shadow-2xl" style={{ animationDelay: `${i*0.1}s`, borderColor: i === Math.floor(batchSize/2) ? '#3b82f6' : '#334155' }}>
-                <span className="text-6xl md:text-7xl font-black">{formatTicketNumber(num)}</span>
+              <div 
+                key={num} 
+                className="animate-pop bg-slate-900 border-2 border-slate-700 rounded-[2.5rem] p-10 md:p-14 w-full sm:w-[320px] text-center shadow-2xl transition-all" 
+                style={{ 
+                  animationDelay: `${i*0.1}s`, 
+                  borderColor: i === Math.floor(batchSize/2) ? '#3b82f6' : '#334155',
+                  boxShadow: i === Math.floor(batchSize/2) ? '0 25px 50px -12px rgba(59, 130, 246, 0.25)' : 'none'
+                }}
+              >
+                <span className="text-7xl md:text-9xl font-black tracking-tighter tabular-nums drop-shadow-md">
+                  {formatTicketNumber(num)}
+                </span>
               </div>
             ))}
           </div>
         </div>
+
         {!isAttendee && (
-          <div className="md:w-1/3 bg-slate-950/40 p-8 border-l border-slate-800 flex flex-col items-center justify-center">
-            <div className="bg-slate-900 p-6 rounded-3xl border border-slate-700 text-center space-y-4">
-              <h4 className="font-bold">掃描追蹤 / Scan to Follow</h4>
-              <div className="bg-white p-2 rounded-xl">
-                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.origin + window.location.pathname + '?attendee=true&zone=' + zoneId)}`} alt="QR" className="w-40 h-40" />
+          <div className="md:w-1/3 bg-slate-950/40 p-8 border-l border-slate-800 flex flex-col items-center justify-center z-10">
+            <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-700 text-center space-y-6 shadow-2xl max-w-sm w-full transition-transform hover:scale-[1.02]">
+              <div className="space-y-2">
+                <h4 className="font-bold text-xl">掃描追蹤實時隊列</h4>
+                <p className="text-sm text-slate-400">Scan to Follow Live Queue</p>
               </div>
-              <p className="text-xs text-slate-500">Live Mobile Queue</p>
+              <div className="bg-white p-5 rounded-3xl shadow-inner">
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(window.location.origin + window.location.pathname + '?attendee=true&zone=' + zoneId)}`} 
+                  alt="QR" 
+                  className="w-full aspect-square" 
+                />
+              </div>
+              <div className="flex items-center justify-center space-x-2 text-blue-400 bg-blue-900/20 px-4 py-2 rounded-full border border-blue-500/20">
+                <QrCode className="w-4 h-4" />
+                <span className="text-xs font-bold uppercase tracking-wider">Live Mobile Queue</span>
+              </div>
             </div>
           </div>
         )}
       </main>
 
-      <footer className="p-6 border-t border-slate-800 bg-slate-900 flex flex-col md:flex-row justify-between items-center gap-4">
+      <footer className="p-6 md:p-8 border-t border-slate-800 bg-slate-900 flex flex-col md:flex-row justify-between items-center gap-6 z-10">
         {isAttendee ? (
-          <p className="w-full text-center text-slate-500">實時觀看 / Viewing Live: <span className="text-blue-400">{zoneName}</span></p>
+          <div className="w-full flex items-center justify-center space-x-3 text-slate-400 font-medium">
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+            <p>實時觀看 / Viewing Live: <span className="text-blue-400 font-bold">{zoneName}</span></p>
+          </div>
         ) : (
           <>
-            <div className="flex space-x-4">
-              <button onClick={() => setView('login')} className="flex items-center text-slate-400 hover:text-white"><Settings className="w-4 h-4 mr-1" /> 設定</button>
-              <button onClick={handleReset} className="flex items-center text-slate-400 hover:text-red-400"><RotateCcw className="w-4 h-4 mr-1" /> 重置</button>
-              <button onClick={toggleFullscreen} className="flex items-center text-slate-400 hover:text-purple-400"><Maximize className="w-4 h-4 mr-1" /> 全螢幕</button>
+            <div className="flex items-center space-x-6">
+              <button onClick={() => setView('login')} className="flex items-center text-slate-400 hover:text-blue-400 transition-colors font-medium text-sm">
+                <Settings className="w-4 h-4 mr-2" /> 設定 / Settings
+              </button>
+              <button onClick={handleReset} className="flex items-center text-slate-400 hover:text-red-400 transition-colors font-medium text-sm">
+                <RotateCcw className="w-4 h-4 mr-2" /> 重置 / Reset
+              </button>
+              <button onClick={toggleFullscreen} className="flex items-center text-slate-400 hover:text-purple-400 transition-colors font-medium text-sm">
+                <Maximize className="w-4 h-4 mr-2" /> 全螢幕 / Full
+              </button>
             </div>
+            
             <div className="flex space-x-4 w-full md:w-auto">
-              <button onClick={handlePrev} disabled={currentStart<=1} className="flex-1 md:flex-none bg-slate-700 px-6 py-3 rounded-xl flex items-center justify-center disabled:opacity-30"><ChevronLeft /> 上一組</button>
-              <button onClick={handleNext} disabled={currentStart+batchSize>maxTicket} className="flex-1 md:flex-none bg-blue-600 px-6 py-3 rounded-xl flex items-center justify-center disabled:opacity-30">下一組 <ChevronRight /></button>
+              <button 
+                onClick={handlePrev} 
+                disabled={currentStart <= 1} 
+                className="flex-1 md:flex-none bg-slate-800 border border-slate-700 hover:bg-slate-750 px-8 py-5 rounded-[1.5rem] flex items-center justify-center disabled:opacity-20 transition-all active:scale-95 shadow-lg"
+              >
+                <ChevronLeft className="mr-2" /> 
+                <div className="text-left leading-tight">
+                  <div className="text-lg font-bold">上一組</div>
+                  <div className="text-[10px] text-slate-400 uppercase font-bold">Prev</div>
+                </div>
+              </button>
+              <button 
+                onClick={handleNext} 
+                disabled={currentStart + batchSize > maxTicket} 
+                className="flex-1 md:flex-none bg-blue-600 hover:bg-blue-500 px-8 py-5 rounded-[1.5rem] flex items-center justify-center disabled:opacity-20 transition-all active:scale-95 shadow-lg shadow-blue-500/20"
+              >
+                <div className="text-right leading-tight mr-2">
+                  <div className="text-lg font-bold">下一組</div>
+                  <div className="text-[10px] text-blue-200 uppercase font-bold">Next</div>
+                </div>
+                <ChevronRight />
+              </button>
             </div>
           </>
         )}
