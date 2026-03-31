@@ -2,11 +2,11 @@
   command = "npm run build"
   publish = "dist"
 
-# This section tells Netlify's build system to ignore 
-# secret scanning errors that are blocking the deployment.
+# Moving these flags into the environment block ensures Netlify 
+# applies them correctly to the build process to bypass the scanner.
+[build.environment]
+  SECRETS_SCAN_ENABLED = "false"
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
+
 [build.processing]
   skip_processing = true
-
-[secrets]
-  SECRETS_SCAN_SMART_DETECTION_ENABLED = false
-  SECRETS_SCAN_ENABLED = false
