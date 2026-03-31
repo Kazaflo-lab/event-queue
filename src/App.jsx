@@ -47,7 +47,6 @@ const parseTicketParts = (prefix, suffix, maxPerLetter = 99) => {
 
 const formatTicketNumber = (num, maxPerLetter = 99) => {
   const { prefix, suffix } = getTicketParts(num, maxPerLetter);
-  // Pad based on maxPerLetter digits
   const padding = maxPerLetter >= 100 ? 3 : 2;
   return `${prefix}${String(suffix).padStart(padding, '0')}`;
 };
@@ -76,6 +75,13 @@ export default function App() {
   const [enableAudio, setEnableAudio] = useState(false);
   const [zoneName, setZoneName] = useState('Zone 1');
 
+  // Metadata for dropdown names
+  const [allZoneNames, setAllZoneNames] = useState({
+    zone1: 'Zone 1',
+    zone2: 'Zone 2',
+    zone3: 'Zone 3'
+  });
+
   const [currentTime, setCurrentTime] = useState(new Date());
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -98,6 +104,18 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Fetch all zone names to populate dropdown labels correctly
+  useEffect(() => {
+    if (!user) return;
+    const zones = ['zone1', 'zone2', 'zone3'];
+    zones.forEach(async (id) => {
+      const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'queueState', id));
+      if (snap.exists() && snap.data().zoneName) {
+        setAllZoneNames(prev => ({ ...prev, [id]: snap.data().zoneName }));
+      }
+    });
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'queueState', zoneId);
@@ -115,6 +133,8 @@ export default function App() {
         setLogoText(data.logoText || 'EQ');
         setEnableAudio(data.enableAudio || false);
         setZoneName(data.zoneName || zoneId);
+        // Sync local metadata for dropdown
+        setAllZoneNames(prev => ({ ...prev, [zoneId]: data.zoneName || zoneId }));
       }
     });
     return () => unsubscribe();
@@ -206,7 +226,6 @@ export default function App() {
   const handleZoneChange = async (e) => {
     const nid = e.target.value;
     
-    // If we're in the settings view, update the draft
     if (view === 'settings') {
       setDraftSettings(p => ({ ...p, zoneId: nid }));
       const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'queueState', nid));
@@ -225,7 +244,6 @@ export default function App() {
         }));
       }
     } else {
-      // If we're in the main view, just switch the active zone
       setZoneId(nid);
     }
   };
@@ -233,7 +251,7 @@ export default function App() {
   const saveSettings = () => {
     const tz = draftSettings.zoneId;
     const mpl = Number(draftSettings.maxPerLetter) || 99;
-    setZoneId(tz); // Ensure the app switches to the zone we just saved
+    setZoneId(tz); 
     updateState({
       currentStart: parseTicketParts(draftSettings.startPrefix, draftSettings.startSuffix, mpl),
       batchSize: Number(draftSettings.batch),
@@ -305,7 +323,9 @@ export default function App() {
             <div className="space-y-2">
               <label className="text-xs text-slate-400">選擇操作區域 / Select Zone</label>
               <select value={draftSettings.zoneId} onChange={handleZoneChange} className="w-full bg-slate-950 p-3 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition-colors cursor-pointer">
-                <option value="zone1">Zone 1</option><option value="zone2">Zone 2</option><option value="zone3">Zone 3</option>
+                <option value="zone1">{allZoneNames.zone1}</option>
+                <option value="zone2">{allZoneNames.zone2}</option>
+                <option value="zone3">{allZoneNames.zone3}</option>
               </select>
             </div>
             <div className="space-y-2">
@@ -326,7 +346,7 @@ export default function App() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">每批數量 / Batch</label>
+              <label className="block text-sm font-medium text-slate-400 mb-2">每批數量 / Batch Size</label>
               <input type="number" value={draftSettings.batch} onChange={e => setDraftSettings({...draftSettings, batch: e.target.value})} className="w-full bg-slate-950 p-3 rounded-xl border border-slate-700 outline-none" placeholder="Batch Size" />
             </div>
             <div>
@@ -378,23 +398,23 @@ export default function App() {
       
       <header className="p-6 md:p-8 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur-md">
         <div className="flex items-center space-x-5">
-          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-xl md:text-2xl shadow-lg shadow-blue-500/20 uppercase tracking-tighter">
+          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-xl md:text-2xl shadow-lg shadow-blue-500/20 uppercase tracking-tighter text-white">
             {logoText}
           </div>
           <div>
             <div className="flex items-center flex-wrap gap-3 mb-1">
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{eventNameZH}</h1>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white">{eventNameZH}</h1>
               
-              {/* Changeable Zone Dropdown Menu */}
+              {/* Changeable Zone Dropdown Menu showing dynamic names */}
               <div className="relative group">
                 <select 
                   value={zoneId} 
                   onChange={handleZoneChange}
                   className="appearance-none bg-blue-600/30 text-blue-400 text-lg md:text-xl font-bold px-4 py-1 pr-10 rounded-lg border border-blue-500/50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-blue-600/40 transition-all uppercase tracking-wider"
                 >
-                  <option value="zone1" className="bg-slate-900 text-white">Zone 1</option>
-                  <option value="zone2" className="bg-slate-900 text-white">Zone 2</option>
-                  <option value="zone3" className="bg-slate-900 text-white">Zone 3</option>
+                  <option value="zone1" className="bg-slate-900 text-white">{allZoneNames.zone1}</option>
+                  <option value="zone2" className="bg-slate-900 text-white">{allZoneNames.zone2}</option>
+                  <option value="zone3" className="bg-slate-900 text-white">{allZoneNames.zone3}</option>
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400 pointer-events-none group-hover:scale-110 transition-transform" />
               </div>
@@ -413,7 +433,7 @@ export default function App() {
         
         <div className={`flex-1 flex flex-col items-center justify-center p-6 md:p-12 z-10 ${!isAttendee ? 'md:w-2/3' : 'w-full'}`}>
           <div className="text-center mb-10 md:mb-16">
-            <h2 className="text-5xl md:text-8xl font-black mb-4 tracking-tight drop-shadow-sm">{servingTextZH}</h2>
+            <h2 className="text-5xl md:text-8xl font-black mb-4 tracking-tight drop-shadow-sm text-white">{servingTextZH}</h2>
             <h3 className="text-xl md:text-3xl text-slate-400 uppercase tracking-[0.2em] font-semibold">{servingTextEN}</h3>
           </div>
           
@@ -428,7 +448,7 @@ export default function App() {
                   boxShadow: i === Math.floor(batchSize/2) ? '0 25px 50px -12px rgba(59, 130, 246, 0.25)' : 'none'
                 }}
               >
-                <span className="text-7xl md:text-9xl font-black tracking-tighter tabular-nums drop-shadow-md">
+                <span className="text-7xl md:text-9xl font-black tracking-tighter tabular-nums drop-shadow-md text-white">
                   {formatTicketNumber(num, maxPerLetter)}
                 </span>
               </div>
@@ -439,7 +459,7 @@ export default function App() {
         {!isAttendee && (
           <div className="md:w-1/3 bg-slate-950/40 p-8 border-l border-slate-800 flex flex-col items-center justify-center z-10">
             <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-700 text-center space-y-6 shadow-2xl max-w-sm w-full transition-transform hover:scale-[1.02]">
-              <div className="space-y-2">
+              <div className="space-y-2 text-white">
                 <h4 className="font-bold text-xl">掃描追蹤實時隊列</h4>
                 <p className="text-sm text-slate-400">Scan to Follow Live Queue</p>
               </div>
