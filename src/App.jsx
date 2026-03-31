@@ -257,7 +257,7 @@ export default function App() {
       maxTicket: parseTicketParts(draftSettings.maxPrefix, draftSettings.maxSuffix),
       eventNameEN: draftSettings.eventNameEN, eventNameZH: draftSettings.eventNameZH,
       servingTextEN: draftSettings.servingTextEN, servingTextZH: draftSettings.servingTextZH,
-      logoText: draftSettings.logoText, enableAudio: draftSettings.enableAudio, zoneName: draftSettings.zoneName
+      logoText: draftSettings.logoText || 'EQ', enableAudio: draftSettings.enableAudio, zoneName: draftSettings.zoneName
     }, tz);
     setView('main');
   };
@@ -295,6 +295,10 @@ export default function App() {
           <div className="space-y-2">
             <label className="text-xs text-slate-400 uppercase tracking-wider">Event Name (EN)</label>
             <input type="text" value={draftSettings.eventNameEN} onChange={e => setDraftSettings({...draftSettings, eventNameEN: e.target.value})} className="w-full bg-slate-900 p-3 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition-colors" placeholder="Event Name EN" />
+          </div>
+          <div className="space-y-2 md:col-span-2 mt-2">
+            <label className="text-xs text-slate-400 uppercase tracking-wider">標誌文字 / Logo Text (Max 3 chars)</label>
+            <input type="text" maxLength={3} value={draftSettings.logoText || ''} onChange={e => setDraftSettings({...draftSettings, logoText: e.target.value})} className="w-full md:w-1/2 bg-slate-900 p-3 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition-colors uppercase" placeholder="EQ" />
           </div>
         </div>
         
@@ -377,13 +381,13 @@ export default function App() {
       
       <header className="p-6 md:p-8 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur-md">
         <div className="flex items-center space-x-5">
-          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg shadow-blue-500/20 uppercase tracking-tighter">
+          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-xl md:text-2xl shadow-lg shadow-blue-500/20 uppercase tracking-tighter">
             {logoText}
           </div>
           <div>
-            <div className="flex items-center flex-wrap gap-2 mb-1">
+            <div className="flex items-center flex-wrap gap-3 mb-1">
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{eventNameZH}</h1>
-              <span className="text-[10px] uppercase font-bold tracking-widest bg-blue-600/30 px-2 py-1 rounded border border-blue-500/50 text-blue-400">{zoneName}</span>
+              <span className="text-lg md:text-xl uppercase font-bold tracking-wider bg-blue-600/30 px-3 py-1 rounded-lg border border-blue-500/50 text-blue-400">{zoneName}</span>
             </div>
             <h2 className="text-sm text-slate-400 font-medium">{eventNameEN}</h2>
           </div>
