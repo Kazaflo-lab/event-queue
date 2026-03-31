@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronRight, ChevronLeft, Clock, RotateCcw, Settings, Lock, Save, X, Volume2, QrCode, Maximize, Minimize, AlertCircle } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Clock, RotateCcw, Settings, Lock, Save, X, Volume2, QrCode, Maximize, Minimize, AlertCircle, ChevronDown } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
@@ -67,7 +67,7 @@ export default function App() {
   const [currentStart, setCurrentStart] = useState(1);
   const [batchSize, setBatchSize] = useState(5);
   const [maxTicket, setMaxTicket] = useState(2000);
-  const [maxPerLetter, setMaxPerLetter] = useState(99); // New State
+  const [maxPerLetter, setMaxPerLetter] = useState(99); 
   const [eventNameEN, setEventNameEN] = useState('Event Queue');
   const [eventNameZH, setEventNameZH] = useState('活動隊列');
   const [servingTextEN, setServingTextEN] = useState('Now Calling');
@@ -205,27 +205,35 @@ export default function App() {
 
   const handleZoneChange = async (e) => {
     const nid = e.target.value;
-    setDraftSettings(p => ({ ...p, zoneId: nid }));
-    const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'queueState', nid));
-    if (snap.exists()) {
-      const d = snap.data();
-      const currentMaxPL = d.maxPerLetter || 99;
-      const s = getTicketParts(d.currentStart || 1, currentMaxPL);
-      const m = getTicketParts(d.maxTicket || 2000, currentMaxPL);
-      setDraftSettings(p => ({
-        ...p, startPrefix: s.prefix, startSuffix: s.suffix, batch: d.batchSize || 5,
-        maxPrefix: m.prefix, maxSuffix: m.suffix, maxPerLetter: currentMaxPL,
-        zoneName: d.zoneName || nid, eventNameEN: d.eventNameEN || p.eventNameEN,
-        eventNameZH: d.eventNameZH || p.eventNameZH, servingTextEN: d.servingTextEN || p.servingTextEN,
-        servingTextZH: d.servingTextZH || p.servingTextZH, logoText: d.logoText || p.logoText,
-        enableAudio: d.enableAudio || false
-      }));
+    
+    // If we're in the settings view, update the draft
+    if (view === 'settings') {
+      setDraftSettings(p => ({ ...p, zoneId: nid }));
+      const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'queueState', nid));
+      if (snap.exists()) {
+        const d = snap.data();
+        const currentMaxPL = d.maxPerLetter || 99;
+        const s = getTicketParts(d.currentStart || 1, currentMaxPL);
+        const m = getTicketParts(d.maxTicket || 2000, currentMaxPL);
+        setDraftSettings(p => ({
+          ...p, startPrefix: s.prefix, startSuffix: s.suffix, batch: d.batchSize || 5,
+          maxPrefix: m.prefix, maxSuffix: m.suffix, maxPerLetter: currentMaxPL,
+          zoneName: d.zoneName || nid, eventNameEN: d.eventNameEN || p.eventNameEN,
+          eventNameZH: d.eventNameZH || p.eventNameZH, servingTextEN: d.servingTextEN || p.servingTextEN,
+          servingTextZH: d.servingTextZH || p.servingTextZH, logoText: d.logoText || p.logoText,
+          enableAudio: d.enableAudio || false, zoneId: nid
+        }));
+      }
+    } else {
+      // If we're in the main view, just switch the active zone
+      setZoneId(nid);
     }
   };
 
   const saveSettings = () => {
     const tz = draftSettings.zoneId;
     const mpl = Number(draftSettings.maxPerLetter) || 99;
+    setZoneId(tz); // Ensure the app switches to the zone we just saved
     updateState({
       currentStart: parseTicketParts(draftSettings.startPrefix, draftSettings.startSuffix, mpl),
       batchSize: Number(draftSettings.batch),
@@ -310,19 +318,19 @@ export default function App() {
         <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 space-y-6">
           <h3 className="text-sm font-bold text-orange-400 uppercase tracking-widest">隊列參數 / Queue Parameters</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <label className="text-xs text-slate-400">起始號碼 / Start</label>
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-2">起始號碼 / Start</label>
               <div className="flex space-x-2">
                 <select value={draftSettings.startPrefix} onChange={e => setDraftSettings({...draftSettings, startPrefix: e.target.value})} className="bg-slate-950 p-3 rounded-xl border border-slate-700 outline-none w-20 text-center cursor-pointer">{Array.from({length:26},(_,i)=>String.fromCharCode(65+i)).map(c=><option key={c} value={c}>{c}</option>)}</select>
                 <input type="number" value={draftSettings.startSuffix} onChange={e => setDraftSettings({...draftSettings, startSuffix: e.target.value})} className="bg-slate-950 p-3 rounded-xl border border-slate-700 outline-none w-full" />
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-xs text-slate-400">每批數量 / Batch</label>
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-2">每批數量 / Batch</label>
               <input type="number" value={draftSettings.batch} onChange={e => setDraftSettings({...draftSettings, batch: e.target.value})} className="w-full bg-slate-950 p-3 rounded-xl border border-slate-700 outline-none" placeholder="Batch Size" />
             </div>
-            <div className="space-y-2">
-              <label className="text-xs text-slate-400">最大號碼 / Max</label>
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-2">最大號碼 / Max</label>
               <div className="flex space-x-2">
                 <select value={draftSettings.maxPrefix} onChange={e => setDraftSettings({...draftSettings, maxPrefix: e.target.value})} className="bg-slate-950 p-3 rounded-xl border border-slate-700 outline-none w-20 text-center cursor-pointer">{Array.from({length:26},(_,i)=>String.fromCharCode(65+i)).map(c=><option key={c} value={c}>{c}</option>)}</select>
                 <input type="number" value={draftSettings.maxSuffix} onChange={e => setDraftSettings({...draftSettings, maxSuffix: e.target.value})} className="bg-slate-950 p-3 rounded-xl border border-slate-700 outline-none w-full" />
@@ -345,7 +353,7 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col text-slate-100 font-sans select-none">
+    <div className="min-h-screen bg-slate-950 flex flex-col text-slate-100 font-sans selection:bg-blue-500/30">
       <style>{`
         @keyframes pop { 0% { opacity: 0; transform: scale(0.9) translateY(20px); } 100% { opacity: 1; transform: scale(1) translateY(0); } } 
         .animate-pop { animation: pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
@@ -376,7 +384,20 @@ export default function App() {
           <div>
             <div className="flex items-center flex-wrap gap-3 mb-1">
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{eventNameZH}</h1>
-              <span className="text-lg md:text-xl uppercase font-bold tracking-wider bg-blue-600/30 px-3 py-1 rounded-lg border border-blue-500/50 text-blue-400">{zoneName}</span>
+              
+              {/* Changeable Zone Dropdown Menu */}
+              <div className="relative group">
+                <select 
+                  value={zoneId} 
+                  onChange={handleZoneChange}
+                  className="appearance-none bg-blue-600/30 text-blue-400 text-lg md:text-xl font-bold px-4 py-1 pr-10 rounded-lg border border-blue-500/50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-blue-600/40 transition-all uppercase tracking-wider"
+                >
+                  <option value="zone1" className="bg-slate-900 text-white">Zone 1</option>
+                  <option value="zone2" className="bg-slate-900 text-white">Zone 2</option>
+                  <option value="zone3" className="bg-slate-900 text-white">Zone 3</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400 pointer-events-none group-hover:scale-110 transition-transform" />
+              </div>
             </div>
             <h2 className="text-sm text-slate-400 font-medium">{eventNameEN}</h2>
           </div>
