@@ -5,17 +5,11 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 
 // Your Firebase Configuration
-// We use a safe check for the environment variable to prevent compiler warnings
-const getApiKey = () => {
-  try {
-    return import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY";
-  } catch (e) {
-    return "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY";
-  }
-};
-
+// To avoid compiler warnings in different environments while still supporting 
+// Netlify's Environment Variables, we access the process/meta environment safely.
 const firebaseConfig = {
-  apiKey: getApiKey(),
+  apiKey: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) 
+    || "AIzaSyD_lJ0aUpX7CjxUeN0vnsz5Ufl_7TFIwoY",
   authDomain: "event-queue-3501b.firebaseapp.com",
   projectId: "event-queue-3501b",
   storageBucket: "event-queue-3501b.firebasestorage.app",
